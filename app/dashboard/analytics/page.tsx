@@ -1,7 +1,6 @@
 "use client"
-export const dynamic = "force-dynamic";
 
-
+export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -26,91 +25,124 @@ import { Activity, Target, Flame } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function AnalyticsPage() {
+  const supabase = createClient()
+  const router = useRouter()
+
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
   const [workoutStats, setWorkoutStats] = useState<any[]>([])
   const [bmiTrend, setBmiTrend] = useState<any[]>([])
   const [sportTypeDistribution, setSportTypeDistribution] = useState<any[]>([])
   const [weeklyStats, setWeeklyStats] = useState<any>(null)
 
-  const supabase = createClient()
-  const router = useRouter()
-
   useEffect(() => {
-    loadData()
+    const init = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
+
+      setUser(user)
+      await loadAnalytics(user.id)
+      setLoading(false)
+    }
+
+    init()
   }, [])
 
-  const loadData = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      router.push("/auth/login")
-      return
-    }
-    setUser(user)
+  const loadAnalytics = async (userId: string) => {
+    // Profile
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle()
 
-    const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-    setProfile(profileData)
+    setProfile(profileData ?? null)
 
-    // Get last 7 days workouts
+    // Last 7 days workouts
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
     const { data: workoutsData } = await supabase
       .from("workout_sessions")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .gte("session_date", sevenDaysAgo.toISOString())
       .order("session_date", { ascending: true })
 
-    // Process workout stats by day
+    const workouts = workoutsData ?? []
+
     const statsByDay: any = {}
-    workoutsData?.forEach((workout: any) => {
-      const date = new Date(workout.session_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    workouts.forEach((workout: any) => {
+      const date = new Date(workout.session_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+
       if (!statsByDay[date]) {
         statsByDay[date] = { date, workouts: 0, calories: 0, duration: 0 }
       }
+
       statsByDay[date].workouts += 1
       statsByDay[date].calories += workout.calories_burned || 0
       statsByDay[date].duration += workout.duration_minutes || 0
     })
+
     setWorkoutStats(Object.values(statsByDay))
 
-    // Get all workouts for sport type distribution
-    const { data: allWorkouts } = await supabase.from("workout_sessions").select("sport_type").eq("user_id", user.id)
+    // Sport type distribution
+    const { data: allWorkouts } = await supabase
+      .from("workout_sessions")
+      .select("sport_type")
+      .eq("user_id", userId)
 
     const sportTypes: any = {}
-    allWorkouts?.forEach((workout: any) => {
-      sportTypes[workout.sport_type] = (sportTypes[workout.sport_type] || 0) + 1
+    ;(allWorkouts ?? []).forEach((w: any) => {
+      if (!w.sport_type) return
+      sportTypes[w.sport_type] = (sportTypes[w.sport_type] || 0) + 1
     })
+
     setSportTypeDistribution(
-      Object.entries(sportTypes).map(([name, value]) => ({
-        name,
-        value,
-      })),
+      Object.entries(sportTypes).map(([name, value]) => ({ name, value }))
     )
 
-    // Calculate weekly stats
-    const totalWorkouts = workoutsData?.length || 0
-    const totalCalories = workoutsData?.reduce((sum: number, w: any) => sum + (w.calories_burned || 0), 0) || 0
-    const totalDuration = workoutsData?.reduce((sum: number, w: any) => sum + (w.duration_minutes || 0), 0) || 0
-    setWeeklyStats({ totalWorkouts, totalCalories, totalDuration })
+    // Weekly stats
+    setWeeklyStats({
+      totalWorkouts: workouts.length,
+      totalCalories: workouts.reduce(
+        (sum: number, w: any) => sum + (w.calories_burned || 0),
+        0
+      ),
+      totalDuration: workouts.reduce(
+        (sum: number, w: any) => sum + (w.duration_minutes || 0),
+        0
+      ),
+    })
 
-    // Get BMI trend
+    // BMI trend
     const { data: bmiData } = await supabase
       .from("bmi_records")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("recorded_at", { ascending: true })
       .limit(15)
 
     setBmiTrend(
-      bmiData?.map((record: any) => ({
-        date: new Date(record.recorded_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        bmi: Number.parseFloat(record.bmi.toFixed(1)),
-        weight: Number.parseFloat(record.weight_kg.toFixed(1)),
-      })) || [],
+      (bmiData ?? []).map((record: any) => ({
+        date: new Date(record.recorded_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        bmi: Number(record.bmi?.toFixed(1)),
+        weight: Number(record.weight_kg?.toFixed(1)),
+      }))
     )
   }
 
@@ -122,172 +154,144 @@ export default function AnalyticsPage() {
     "hsl(var(--chart-5))",
   ]
 
-  if (!user) return null
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        Loading analytics...
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader user={user} profile={profile} />
+
       <main className="flex-1 space-y-6 p-6 md:p-8 lg:p-10">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground">Track your performance and progress</p>
+          <p className="text-muted-foreground">
+            Track your performance and progress
+          </p>
         </div>
 
-        {/* Weekly Summary */}
         {weeklyStats && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <CardContent className="flex items-center gap-4 p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Activity className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Workouts</p>
-                  <p className="text-2xl font-bold">{weeklyStats.totalWorkouts}</p>
-                  <p className="text-xs text-muted-foreground">Last 7 days</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-4 p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
-                  <Flame className="h-6 w-6 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Calories Burned</p>
-                  <p className="text-2xl font-bold">{weeklyStats.totalCalories}</p>
-                  <p className="text-xs text-muted-foreground">Last 7 days</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-4 p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10">
-                  <Target className="h-6 w-6 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Duration</p>
-                  <p className="text-2xl font-bold">{weeklyStats.totalDuration} min</p>
-                  <p className="text-xs text-muted-foreground">Last 7 days</p>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard
+              title="Total Workouts"
+              value={weeklyStats.totalWorkouts}
+              icon={<Activity className="h-6 w-6 text-primary" />}
+            />
+            <StatCard
+              title="Calories Burned"
+              value={weeklyStats.totalCalories}
+              icon={<Flame className="h-6 w-6 text-secondary" />}
+            />
+            <StatCard
+              title="Total Duration"
+              value={`${weeklyStats.totalDuration} min`}
+              icon={<Target className="h-6 w-6 text-accent" />}
+            />
           </div>
         )}
 
-        {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Workout Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Weekly Activity</CardTitle>
-              <CardDescription>Workouts and calories over the last 7 days</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {workoutStats.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={workoutStats}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis className="text-xs" />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="workouts" fill="hsl(var(--primary))" name="Workouts" />
-                      <Bar dataKey="calories" fill="hsl(var(--secondary))" name="Calories" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="flex h-64 items-center justify-center text-muted-foreground">
-                  No workout data available
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ChartCard title="Weekly Activity">
+            {workoutStats.length ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={workoutStats}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="workouts" fill="hsl(var(--primary))" />
+                  <Bar dataKey="calories" fill="hsl(var(--secondary))" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState text="No workout data available" />
+            )}
+          </ChartCard>
 
-          {/* Sport Type Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Sport Type Distribution</CardTitle>
-              <CardDescription>Breakdown of your training activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {sportTypeDistribution.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={sportTypeDistribution}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        fill="hsl(var(--primary))"
-                        dataKey="value"
-                        label
-                      >
-                        {sportTypeDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="flex h-64 items-center justify-center text-muted-foreground">
-                  No sport type data available
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ChartCard title="Sport Type Distribution">
+            {sportTypeDistribution.length ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie data={sportTypeDistribution} dataKey="value" label>
+                    {sportTypeDistribution.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState text="No sport type data available" />
+            )}
+          </ChartCard>
 
-          {/* BMI Trend */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Body Metrics Trend</CardTitle>
-              <CardDescription>Track your BMI and weight progress over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {bmiTrend.length > 0 ? (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={bmiTrend}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis yAxisId="left" className="text-xs" />
-                      <YAxis yAxisId="right" orientation="right" className="text-xs" />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="bmi"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={2}
-                        dot={{ fill: "hsl(var(--primary))" }}
-                        name="BMI"
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="weight"
-                        stroke="hsl(var(--secondary))"
-                        strokeWidth={2}
-                        dot={{ fill: "hsl(var(--secondary))" }}
-                        name="Weight (kg)"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="flex h-80 items-center justify-center text-muted-foreground">No BMI data available</div>
-              )}
-            </CardContent>
-          </Card>
+          <ChartCard title="BMI & Weight Trend" full>
+            {bmiTrend.length ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={bmiTrend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip />
+                  <Legend />
+                  <Line yAxisId="left" dataKey="bmi" stroke="hsl(var(--primary))" />
+                  <Line
+                    yAxisId="right"
+                    dataKey="weight"
+                    stroke="hsl(var(--secondary))"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState text="No BMI data available" />
+            )}
+          </ChartCard>
         </div>
       </main>
+    </div>
+  )
+}
+
+/* ---------- Small helper components ---------- */
+
+function StatCard({ title, value, icon }: any) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-4 p-6">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ChartCard({ title, children, full }: any) {
+  return (
+    <Card className={full ? "lg:col-span-2" : ""}>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+function EmptyState({ text }: any) {
+  return (
+    <div className="flex h-64 items-center justify-center text-muted-foreground">
+      {text}
     </div>
   )
 }
