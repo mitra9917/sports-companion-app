@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+
+
 import { Button } from "@/components/ui/button"
 import { Activity, TrendingUp, Target, Award } from "lucide-react"
 import Link from "next/link"
