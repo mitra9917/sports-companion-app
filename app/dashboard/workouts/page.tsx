@@ -1,3 +1,4 @@
+//fully functional now powered by supabase tables and foreign keys all set
 "use client"
 export const dynamic = "force-dynamic";
 
