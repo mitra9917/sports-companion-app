@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -51,27 +50,38 @@ export function BMIMonitor({ latestBMI, bmiHistory, userId }: BMIMonitorProps) {
   const router = useRouter()
   const supabase = createClient()
 
-  /**
-   * ✅ SAFELY pre-fill height from latest BMI (if exists)
-   * Runs AFTER data loads — never crashes
-   */
+  /* ✅ Safely prefill height from last record */
   useEffect(() => {
     if (latestBMI?.height_cm) {
       setHeight(String(latestBMI.height_cm))
     }
   }, [latestBMI])
 
+  /* =====================================================
+     ✅ FIXED: BMI is now CALCULATED before INSERT
+     ===================================================== */
   const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
+      const weightNum = Number(weight)
+      const heightCm = Number(height)
+      const heightM = heightCm / 100
+
+      if (!weightNum || !heightM) {
+        throw new Error("Invalid height or weight")
+      }
+
+      const bmi = Number((weightNum / (heightM * heightM)).toFixed(1))
+
       const { error } = await supabase.from("bmi_records").insert({
         user_id: userId,
-        weight_kg: Number.parseFloat(weight),
-        height_cm: Number.parseFloat(height),
-        body_fat_percentage: bodyFat ? Number.parseFloat(bodyFat) : null,
-        muscle_mass_kg: muscleMass ? Number.parseFloat(muscleMass) : null,
+        weight_kg: weightNum,
+        height_cm: heightCm,
+        bmi,
+        body_fat_percentage: bodyFat ? Number(bodyFat) : null,
+        muscle_mass_kg: muscleMass ? Number(muscleMass) : null,
         notes: notes || null,
       })
 
@@ -85,6 +95,7 @@ export function BMIMonitor({ latestBMI, bmiHistory, userId }: BMIMonitorProps) {
       router.refresh()
     } catch (error) {
       console.error("Error adding BMI record:", error)
+      alert("Failed to add BMI record. Check console for details.")
     } finally {
       setIsLoading(false)
     }
@@ -113,7 +124,7 @@ export function BMIMonitor({ latestBMI, bmiHistory, userId }: BMIMonitorProps) {
         month: "short",
         day: "numeric",
       }),
-      bmi: Number.parseFloat(record.bmi.toFixed(1)),
+      bmi: Number(record.bmi.toFixed(1)),
     }))
 
   const category = latestBMI ? getBMICategory(latestBMI.bmi) : null
@@ -144,58 +155,28 @@ export function BMIMonitor({ latestBMI, bmiHistory, userId }: BMIMonitorProps) {
 
               <form onSubmit={handleAddRecord} className="space-y-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="weight">Weight (kg)</Label>
-                  <Input
-                    id="weight"
-                    type="number"
-                    step="0.1"
-                    required
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                  />
+                  <Label>Weight (kg)</Label>
+                  <Input type="number" step="0.1" required value={weight} onChange={(e) => setWeight(e.target.value)} />
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="height">Height (cm)</Label>
-                  <Input
-                    id="height"
-                    type="number"
-                    step="0.1"
-                    required
-                    value={height}
-                    onChange={(e) => setHeight(e.target.value)}
-                  />
+                  <Label>Height (cm)</Label>
+                  <Input type="number" step="0.1" required value={height} onChange={(e) => setHeight(e.target.value)} />
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="bodyFat">Body Fat % (optional)</Label>
-                  <Input
-                    id="bodyFat"
-                    type="number"
-                    step="0.1"
-                    value={bodyFat}
-                    onChange={(e) => setBodyFat(e.target.value)}
-                  />
+                  <Label>Body Fat % (optional)</Label>
+                  <Input type="number" step="0.1" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} />
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="muscleMass">Muscle Mass (kg) (optional)</Label>
-                  <Input
-                    id="muscleMass"
-                    type="number"
-                    step="0.1"
-                    value={muscleMass}
-                    onChange={(e) => setMuscleMass(e.target.value)}
-                  />
+                  <Label>Muscle Mass (kg) (optional)</Label>
+                  <Input type="number" step="0.1" value={muscleMass} onChange={(e) => setMuscleMass(e.target.value)} />
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="notes">Notes (optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
+                  <Label>Notes (optional)</Label>
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
@@ -241,12 +222,7 @@ export function BMIMonitor({ latestBMI, bmiHistory, userId }: BMIMonitorProps) {
                     <XAxis dataKey="date" />
                     <YAxis domain={["dataMin - 1", "dataMax + 1"]} />
                     <Tooltip />
-                    <Line
-                      type="monotone"
-                      dataKey="bmi"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                    />
+                    <Line type="monotone" dataKey="bmi" stroke="hsl(var(--primary))" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
