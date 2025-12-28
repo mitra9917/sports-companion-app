@@ -1,5 +1,5 @@
 "use client"
-
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Activity, LogOut, Settings, User } from "lucide-react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 
 interface DashboardHeaderProps {
   user: any
@@ -55,6 +54,9 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
           </Link>
           <Link href="/dashboard/analytics">
             <Button variant="ghost">Analytics</Button>
+          </Link>
+          <Link href="/dashboard/bmi">
+            <Button variant="ghost">BMI</Button>
           </Link>
 
           <DropdownMenu>
