@@ -2,10 +2,10 @@
 
 export const dynamic = "force-dynamic"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart,
   Bar,
@@ -21,8 +21,18 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
-import { Activity, Target, Flame } from "lucide-react"
+import { Activity, Flame, Target } from "lucide-react"
 import { useRouter } from "next/navigation"
+
+/* ---------- COLORS ---------- */
+const COLORS = [
+  "#2563eb", // blue
+  "#16a34a", // green
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // purple
+  "#14b8a6", // teal
+]
 
 export default function AnalyticsPage() {
   const supabase = createClient()
@@ -32,24 +42,21 @@ export default function AnalyticsPage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  const [workoutStats, setWorkoutStats] = useState<any[]>([])
-  const [bmiTrend, setBmiTrend] = useState<any[]>([])
-  const [sportTypeDistribution, setSportTypeDistribution] = useState<any[]>([])
   const [weeklyStats, setWeeklyStats] = useState<any>(null)
+  const [workoutStats, setWorkoutStats] = useState<any[]>([])
+  const [sportTypeDistribution, setSportTypeDistribution] = useState<any[]>([])
+  const [bmiTrend, setBmiTrend] = useState<any[]>([])
 
   useEffect(() => {
     const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) {
         router.push("/auth/login")
         return
       }
 
-      setUser(user)
-      await loadAnalytics(user.id)
+      setUser(data.user)
+      await loadAnalytics(data.user.id)
       setLoading(false)
     }
 
@@ -57,7 +64,7 @@ export default function AnalyticsPage() {
   }, [])
 
   const loadAnalytics = async (userId: string) => {
-    // Profile
+    /* ---------- PROFILE ---------- */
     const { data: profileData } = await supabase
       .from("profiles")
       .select("*")
@@ -66,7 +73,7 @@ export default function AnalyticsPage() {
 
     setProfile(profileData ?? null)
 
-    // Last 7 days workouts
+    /* ---------- WORKOUTS (LAST 7 DAYS) ---------- */
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
@@ -80,40 +87,22 @@ export default function AnalyticsPage() {
     const workouts = workoutsData ?? []
 
     const statsByDay: any = {}
-    workouts.forEach((workout: any) => {
-      const date = new Date(workout.session_date).toLocaleDateString("en-US", {
+    workouts.forEach((w: any) => {
+      const date = new Date(w.session_date).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       })
 
       if (!statsByDay[date]) {
-        statsByDay[date] = { date, workouts: 0, calories: 0, duration: 0 }
+        statsByDay[date] = { date, workouts: 0, calories: 0 }
       }
 
       statsByDay[date].workouts += 1
-      statsByDay[date].calories += workout.calories_burned || 0
-      statsByDay[date].duration += workout.duration_minutes || 0
+      statsByDay[date].calories += w.calories_burned || 0
     })
 
     setWorkoutStats(Object.values(statsByDay))
 
-    // Sport type distribution
-    const { data: allWorkouts } = await supabase
-      .from("workout_sessions")
-      .select("sport_type")
-      .eq("user_id", userId)
-
-    const sportTypes: any = {}
-    ;(allWorkouts ?? []).forEach((w: any) => {
-      if (!w.sport_type) return
-      sportTypes[w.sport_type] = (sportTypes[w.sport_type] || 0) + 1
-    })
-
-    setSportTypeDistribution(
-      Object.entries(sportTypes).map(([name, value]) => ({ name, value }))
-    )
-
-    // Weekly stats
     setWeeklyStats({
       totalWorkouts: workouts.length,
       totalCalories: workouts.reduce(
@@ -126,7 +115,23 @@ export default function AnalyticsPage() {
       ),
     })
 
-    // BMI trend
+    /* ---------- SPORT TYPE DISTRIBUTION ---------- */
+    const { data: allWorkouts } = await supabase
+      .from("workout_sessions")
+      .select("sport_type")
+      .eq("user_id", userId)
+
+    const sportMap: any = {}
+    ;(allWorkouts ?? []).forEach((w: any) => {
+      if (!w.sport_type) return
+      sportMap[w.sport_type] = (sportMap[w.sport_type] || 0) + 1
+    })
+
+    setSportTypeDistribution(
+      Object.entries(sportMap).map(([name, value]) => ({ name, value }))
+    )
+
+    /* ---------- BMI TREND ---------- */
     const { data: bmiData } = await supabase
       .from("bmi_records")
       .select("*")
@@ -135,24 +140,16 @@ export default function AnalyticsPage() {
       .limit(15)
 
     setBmiTrend(
-      (bmiData ?? []).map((record: any) => ({
-        date: new Date(record.recorded_at).toLocaleDateString("en-US", {
+      (bmiData ?? []).map((r: any) => ({
+        date: new Date(r.recorded_at).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),
-        bmi: Number(record.bmi?.toFixed(1)),
-        weight: Number(record.weight_kg?.toFixed(1)),
+        bmi: r.bmi ? Number(r.bmi.toFixed(1)) : 0,
+        weight: r.weight_kg ? Number(r.weight_kg.toFixed(1)) : 0,
       }))
     )
   }
-
-  const COLORS = [
-    "hsl(var(--primary))",
-    "hsl(var(--secondary))",
-    "hsl(var(--accent))",
-    "hsl(var(--chart-4))",
-    "hsl(var(--chart-5))",
-  ]
 
   if (loading) {
     return (
@@ -167,34 +164,19 @@ export default function AnalyticsPage() {
       <DashboardHeader user={user} profile={profile} />
 
       <main className="flex-1 space-y-6 p-6 md:p-8 lg:p-10">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground">
-            Track your performance and progress
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold">Analytics</h1>
 
+        {/* ---------- SUMMARY ---------- */}
         {weeklyStats && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard
-              title="Total Workouts"
-              value={weeklyStats.totalWorkouts}
-              icon={<Activity className="h-6 w-6 text-primary" />}
-            />
-            <StatCard
-              title="Calories Burned"
-              value={weeklyStats.totalCalories}
-              icon={<Flame className="h-6 w-6 text-secondary" />}
-            />
-            <StatCard
-              title="Total Duration"
-              value={`${weeklyStats.totalDuration} min`}
-              icon={<Target className="h-6 w-6 text-accent" />}
-            />
+            <StatCard title="Total Workouts" value={weeklyStats.totalWorkouts} icon={<Activity />} />
+            <StatCard title="Calories Burned" value={weeklyStats.totalCalories} icon={<Flame />} />
+            <StatCard title="Total Duration" value={`${weeklyStats.totalDuration} min`} icon={<Target />} />
           </div>
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
+          {/* ---------- BAR CHART ---------- */}
           <ChartCard title="Weekly Activity">
             {workoutStats.length ? (
               <ResponsiveContainer width="100%" height={250}>
@@ -204,8 +186,8 @@ export default function AnalyticsPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="workouts" fill="hsl(var(--primary))" />
-                  <Bar dataKey="calories" fill="hsl(var(--secondary))" />
+                  <Bar dataKey="workouts" fill="#2563eb" name="Workouts" />
+                  <Bar dataKey="calories" fill="#f59e0b" name="Calories" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -213,11 +195,20 @@ export default function AnalyticsPage() {
             )}
           </ChartCard>
 
+          {/* ---------- PIE CHART ---------- */}
           <ChartCard title="Sport Type Distribution">
             {sportTypeDistribution.length ? (
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={sportTypeDistribution} dataKey="value" label>
+                  <Pie
+                    data={sportTypeDistribution}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={90}
+                    label
+                  >
                     {sportTypeDistribution.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />
                     ))}
@@ -227,10 +218,11 @@ export default function AnalyticsPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState text="No sport type data available" />
+              <EmptyState text="No sport data available" />
             )}
           </ChartCard>
 
+          {/* ---------- BMI LINE CHART ---------- */}
           <ChartCard title="BMI & Weight Trend" full>
             {bmiTrend.length ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -241,12 +233,8 @@ export default function AnalyticsPage() {
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip />
                   <Legend />
-                  <Line yAxisId="left" dataKey="bmi" stroke="hsl(var(--primary))" />
-                  <Line
-                    yAxisId="right"
-                    dataKey="weight"
-                    stroke="hsl(var(--secondary))"
-                  />
+                  <Line yAxisId="left" dataKey="bmi" stroke="#2563eb" strokeWidth={2} name="BMI" />
+                  <Line yAxisId="right" dataKey="weight" stroke="#16a34a" strokeWidth={2} name="Weight (kg)" />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -259,7 +247,7 @@ export default function AnalyticsPage() {
   )
 }
 
-/* ---------- Small helper components ---------- */
+/* ---------- Helper Components ---------- */
 
 function StatCard({ title, value, icon }: any) {
   return (
