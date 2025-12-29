@@ -18,17 +18,22 @@ export default function BmiPage() {
   const [weight, setWeight] = useState("")
   const [bmiRecords, setBmiRecords] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
   }, [])
 
   const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
     if (!user) {
       router.push("/auth/login")
       return
     }
+
     setUser(user)
 
     const { data: profileData } = await supabase
@@ -49,17 +54,30 @@ export default function BmiPage() {
   }
 
   const handleSaveBMI = async () => {
-    if (!profile?.height_cm || !weight) return
+    setError(null)
+
+    const weightNum = Number(weight)
+
+    if (!profile?.height_cm) {
+      setError("Height not found in profile")
+      return
+    }
+
+    if (!weight || weightNum <= 0) {
+      setError("Weight must be greater than 0")
+      return
+    }
 
     const heightM = profile.height_cm / 100
-    const bmiValue = Number(weight) / (heightM * heightM)
+    const bmiValue = weightNum / (heightM * heightM)
 
     setLoading(true)
 
     try {
       const { error } = await supabase.from("bmi_records").insert({
         user_id: user.id,
-        weight_kg: Number(weight),
+        weight_kg: weightNum,
+        height_cm: profile.height_cm,
         bmi: Number(bmiValue.toFixed(2)),
       })
 
@@ -69,6 +87,7 @@ export default function BmiPage() {
       loadData()
     } catch (err) {
       console.error("BMI save error:", err)
+      setError("Failed to save BMI. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -86,9 +105,11 @@ export default function BmiPage() {
           <CardHeader>
             <CardTitle>Log New BMI</CardTitle>
           </CardHeader>
-          <CardContent className="flex gap-4">
+          <CardContent className="flex gap-4 items-center">
             <Input
               type="number"
+              min="1"
+              step="0.1"
               placeholder="Weight (kg)"
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
@@ -97,6 +118,10 @@ export default function BmiPage() {
               {loading ? "Saving..." : "Save"}
             </Button>
           </CardContent>
+
+          {error && (
+            <p className="px-6 pb-4 text-sm text-destructive">{error}</p>
+          )}
         </Card>
 
         <Card>
