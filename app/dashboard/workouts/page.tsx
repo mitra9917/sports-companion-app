@@ -1,11 +1,7 @@
-//fully functional now powered by supabase tables and foreign keys all set
 "use client"
-export const dynamic = "force-dynamic";
-
-
+export const dynamic = "force-dynamic"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
@@ -14,7 +10,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -65,13 +67,20 @@ export default function WorkoutsPage() {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+
     if (!user) {
       router.push("/auth/login")
       return
     }
+
     setUser(user)
 
-    const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+
     setProfile(profileData)
 
     const { data: workoutsData } = await supabase
@@ -79,6 +88,7 @@ export default function WorkoutsPage() {
       .select("*")
       .eq("user_id", user.id)
       .order("session_date", { ascending: false })
+
     setWorkouts(workoutsData || [])
   }
 
@@ -86,16 +96,45 @@ export default function WorkoutsPage() {
     e.preventDefault()
     setIsLoading(true)
 
+    /* ---------- HARD VALIDATION ---------- */
+    const durationNum = Number(duration)
+    const caloriesNum = calories ? Number(calories) : 0
+    const distanceNum = distance ? Number(distance) : 0
+
+    if (!sessionName.trim() || !sportType.trim()) {
+      alert("Session name and sport type are required")
+      setIsLoading(false)
+      return
+    }
+
+    if (isNaN(durationNum) || durationNum <= 0) {
+      alert("Duration must be greater than 0 minutes")
+      setIsLoading(false)
+      return
+    }
+
+    if (caloriesNum < 0) {
+      alert("Calories burned cannot be negative")
+      setIsLoading(false)
+      return
+    }
+
+    if (distanceNum < 0) {
+      alert("Distance cannot be negative")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const { error } = await supabase.from("workout_sessions").insert({
         user_id: user.id,
-        session_name: sessionName,
-        sport_type: sportType,
-        duration_minutes: Number.parseInt(duration),
-        intensity: intensity,
-        calories_burned: calories ? Number.parseInt(calories) : null,
-        distance_km: distance ? Number.parseFloat(distance) : null,
-        notes: notes || null,
+        session_name: sessionName.trim(),
+        sport_type: sportType.trim(),
+        duration_minutes: durationNum,
+        intensity,
+        calories_burned: calories ? caloriesNum : null,
+        distance_km: distance ? distanceNum : null,
+        notes: notes.trim() || null,
       })
 
       if (error) throw error
@@ -110,7 +149,8 @@ export default function WorkoutsPage() {
       setNotes("")
       loadData()
     } catch (error) {
-      console.error("[v0] Error adding workout:", error)
+      console.error("Error adding workout:", error)
+      alert("Failed to log workout. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -131,12 +171,16 @@ export default function WorkoutsPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader user={user} profile={profile} />
+
       <main className="flex-1 space-y-6 p-6 md:p-8 lg:p-10">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Workouts</h1>
-            <p className="text-muted-foreground">Track and manage your training sessions</p>
+            <p className="text-muted-foreground">
+              Track and manage your training sessions
+            </p>
           </div>
+
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -144,46 +188,49 @@ export default function WorkoutsPage() {
                 Log Workout
               </Button>
             </DialogTrigger>
+
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Log Workout Session</DialogTitle>
-                <DialogDescription>Record your training session details</DialogDescription>
+                <DialogDescription>
+                  Record your training session details
+                </DialogDescription>
               </DialogHeader>
+
               <form onSubmit={handleAddWorkout} className="space-y-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="sessionName">Session Name</Label>
+                  <Label>Session Name</Label>
                   <Input
-                    id="sessionName"
-                    placeholder="Morning Run"
                     required
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                   />
                 </div>
+
                 <div className="grid gap-2">
-                  <Label htmlFor="sportType">Sport Type</Label>
+                  <Label>Sport Type</Label>
                   <Input
-                    id="sportType"
-                    placeholder="Running, Cycling, Swimming..."
                     required
                     value={sportType}
                     onChange={(e) => setSportType(e.target.value)}
                   />
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="duration">Duration (minutes)</Label>
+                    <Label>Duration (minutes)</Label>
                     <Input
-                      id="duration"
                       type="number"
-                      placeholder="45"
+                      min={1}
+                      step={1}
                       required
                       value={duration}
                       onChange={(e) => setDuration(e.target.value)}
                     />
                   </div>
+
                   <div className="grid gap-2">
-                    <Label htmlFor="intensity">Intensity</Label>
+                    <Label>Intensity</Label>
                     <Select value={intensity} onValueChange={setIntensity}>
                       <SelectTrigger>
                         <SelectValue />
@@ -197,38 +244,39 @@ export default function WorkoutsPage() {
                     </Select>
                   </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="calories">Calories Burned (optional)</Label>
+                    <Label>Calories Burned</Label>
                     <Input
-                      id="calories"
                       type="number"
-                      placeholder="350"
+                      min={0}
+                      step={1}
                       value={calories}
                       onChange={(e) => setCalories(e.target.value)}
                     />
                   </div>
+
                   <div className="grid gap-2">
-                    <Label htmlFor="distance">Distance (km) (optional)</Label>
+                    <Label>Distance (km)</Label>
                     <Input
-                      id="distance"
                       type="number"
-                      step="0.1"
-                      placeholder="5.5"
+                      min={0}
+                      step={0.1}
                       value={distance}
                       onChange={(e) => setDistance(e.target.value)}
                     />
                   </div>
                 </div>
+
                 <div className="grid gap-2">
-                  <Label htmlFor="notes">Notes (optional)</Label>
+                  <Label>Notes</Label>
                   <Textarea
-                    id="notes"
-                    placeholder="How did it go?"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                   />
                 </div>
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging..." : "Log Workout"}
                 </Button>
@@ -238,48 +286,51 @@ export default function WorkoutsPage() {
         </div>
 
         <div className="grid gap-4">
-          {workouts.length > 0 ? (
-            workouts.map((workout) => (
-              <Card key={workout.id}>
-                <CardContent className="flex items-center justify-between p-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">{workout.session_name}</h3>
-                      <Badge variant="secondary">{workout.sport_type}</Badge>
-                      <Badge className={getIntensityColor(workout.intensity)}>{workout.intensity}</Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(workout.session_date).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {workout.duration_minutes} min
-                      </span>
-                      {workout.calories_burned && (
-                        <span className="flex items-center gap-1">
-                          <Flame className="h-4 w-4" />
-                          {workout.calories_burned} cal
-                        </span>
-                      )}
-                      {workout.distance_km && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4" />
-                          {workout.distance_km} km
-                        </span>
-                      )}
-                    </div>
-                    {workout.notes && <p className="text-sm text-muted-foreground">{workout.notes}</p>}
+          {workouts.length ? (
+            workouts.map((w) => (
+              <Card key={w.id}>
+                <CardContent className="p-6 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{w.session_name}</h3>
+                    <Badge variant="secondary">{w.sport_type}</Badge>
+                    <Badge className={getIntensityColor(w.intensity)}>
+                      {w.intensity}
+                    </Badge>
                   </div>
+
+                  <div className="flex gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      {new Date(w.session_date).toLocaleDateString()}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      {w.duration_minutes} min
+                    </span>
+                    {w.calories_burned !== null && (
+                      <span className="flex items-center gap-1">
+                        <Flame className="h-4 w-4" />
+                        {w.calories_burned} cal
+                      </span>
+                    )}
+                    {w.distance_km !== null && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4" />
+                        {w.distance_km} km
+                      </span>
+                    )}
+                  </div>
+
+                  {w.notes && (
+                    <p className="text-sm text-muted-foreground">{w.notes}</p>
+                  )}
                 </CardContent>
               </Card>
             ))
           ) : (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <p className="text-muted-foreground">No workouts logged yet</p>
-                <p className="mt-1 text-sm text-muted-foreground">Start tracking your training sessions</p>
+              <CardContent className="py-16 text-center text-muted-foreground">
+                No workouts logged yet
               </CardContent>
             </Card>
           )}
