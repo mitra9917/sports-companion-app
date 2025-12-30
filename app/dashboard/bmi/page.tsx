@@ -53,6 +53,9 @@ export default function BmiPage() {
     setBmiRecords(bmiData || [])
   }
 
+  /* ===========================
+     ✅ REPLACED FUNCTION
+     =========================== */
   const handleSaveBMI = async () => {
     setError(null)
 
@@ -74,14 +77,44 @@ export default function BmiPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.from("bmi_records").insert({
+      /* 1️⃣ Save BMI record */
+      const { error: bmiError } = await supabase.from("bmi_records").insert({
         user_id: user.id,
         weight_kg: weightNum,
         height_cm: profile.height_cm,
         bmi: Number(bmiValue.toFixed(2)),
       })
 
-      if (error) throw error
+      if (bmiError) throw bmiError
+
+      /* 2️⃣ Update ACTIVE weight-loss goals */
+      const { data: goals } = await supabase
+        .from("goals")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .eq("goal_type", "weight_loss")
+
+      if (goals && goals.length > 0) {
+        for (const goal of goals) {
+          const updates: any = {
+            current_value: weightNum,
+          }
+
+          // auto-complete goal if target reached
+          if (
+            goal.target_value !== null &&
+            weightNum <= goal.target_value
+          ) {
+            updates.status = "completed"
+          }
+
+          await supabase
+            .from("goals")
+            .update(updates)
+            .eq("id", goal.id)
+        }
+      }
 
       setWeight("")
       loadData()
@@ -98,6 +131,7 @@ export default function BmiPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader user={user} profile={profile} />
+
       <main className="flex-1 space-y-6 p-6 md:p-8 lg:p-10">
         <h1 className="text-3xl font-bold">BMI Tracker</h1>
 

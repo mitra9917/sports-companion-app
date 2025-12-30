@@ -35,6 +35,7 @@ interface Goal {
   description?: string
   target_value?: number
   current_value?: number
+  start_value?: number
   unit?: string
   target_date?: string
   status: string
@@ -128,9 +129,29 @@ export default function GoalsPage() {
     }
   }
 
+  /* ✅ FIXED PROGRESS LOGIC */
   const getProgress = (goal: Goal) => {
-    if (!goal.current_value || !goal.target_value) return 0
-    return Math.min((goal.current_value / goal.target_value) * 100, 100)
+    if (goal.current_value == null || goal.target_value == null) return 0
+
+    // Weight loss → reverse progress
+    if (goal.goal_type === "weight_loss") {
+      const start = goal.start_value ?? goal.current_value
+      const current = goal.current_value
+      const target = goal.target_value
+
+      if (start <= target) return 0
+
+      const progress =
+        ((start - current) / (start - target)) * 100
+
+      return Math.min(Math.max(progress, 0), 100)
+    }
+
+    // Normal forward goals
+    return Math.min(
+      (goal.current_value / goal.target_value) * 100,
+      100
+    )
   }
 
   const activeGoals = goals.filter((g) => g.status === "active")
@@ -168,7 +189,6 @@ export default function GoalsPage() {
               </DialogHeader>
 
               <form onSubmit={handleAddGoal} className="space-y-5 mt-4">
-                {/* Title */}
                 <div className="space-y-1">
                   <Label>Goal Title</Label>
                   <Input
@@ -179,7 +199,6 @@ export default function GoalsPage() {
                   />
                 </div>
 
-                {/* Goal Type */}
                 <div className="space-y-1">
                   <Label>Goal Type</Label>
                   <Select value={goalType} onValueChange={setGoalType}>
@@ -196,7 +215,6 @@ export default function GoalsPage() {
                   </Select>
                 </div>
 
-                {/* Description */}
                 <div className="space-y-1">
                   <Label>Description (optional)</Label>
                   <Textarea
@@ -206,7 +224,6 @@ export default function GoalsPage() {
                   />
                 </div>
 
-                {/* Numbers */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-1">
                     <Label>Current Value</Label>
@@ -241,7 +258,6 @@ export default function GoalsPage() {
                   </div>
                 </div>
 
-                {/* Date */}
                 <div className="space-y-1">
                   <Label>Target Date (optional)</Label>
                   <Input
@@ -259,7 +275,6 @@ export default function GoalsPage() {
           </Dialog>
         </div>
 
-        {/* Active Goals */}
         <div className="grid gap-4 md:grid-cols-2">
           {activeGoals.length ? (
             activeGoals.map((goal) => (
@@ -280,7 +295,6 @@ export default function GoalsPage() {
           )}
         </div>
 
-        {/* Completed Goals */}
         {completedGoals.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Completed Goals</h2>
