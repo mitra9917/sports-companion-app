@@ -95,7 +95,7 @@ export default function GoalsPage() {
     const target = targetValue ? Number(targetValue) : null
 
     if (curr !== null && curr < 0) return alert("Current value cannot be negative")
-    if (target === null || target <= 0) return alert("Target value must be > 0")
+    if (target === null || target <= 0) return alert("Target value must be greater than 0")
 
     setIsLoading(true)
 
@@ -145,7 +145,7 @@ export default function GoalsPage() {
       <main className="flex-1 space-y-6 p-6 md:p-8 lg:p-10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Goals</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Goals</h1>
             <p className="text-muted-foreground">
               Set and track your fitness objectives
             </p>
@@ -159,56 +159,96 @@ export default function GoalsPage() {
               </Button>
             </DialogTrigger>
 
-            <DialogContent>
-              <DialogHeader>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="space-y-1">
                 <DialogTitle>Create New Goal</DialogTitle>
                 <DialogDescription>
-                  Set a measurable fitness goal
+                  Set a new fitness objective to track
                 </DialogDescription>
               </DialogHeader>
 
-              <form onSubmit={handleAddGoal} className="space-y-4">
-                <div>
+              <form onSubmit={handleAddGoal} className="space-y-5 mt-4">
+                {/* Title */}
+                <div className="space-y-1">
                   <Label>Goal Title</Label>
-                  <Input required value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <Input
+                    placeholder="Lose 5kg"
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
                 </div>
 
-                <div>
+                {/* Goal Type */}
+                <div className="space-y-1">
                   <Label>Goal Type</Label>
                   <Select value={goalType} onValueChange={setGoalType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="weight_loss">Weight Loss</SelectItem>
                       <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
                       <SelectItem value="endurance">Endurance</SelectItem>
                       <SelectItem value="strength">Strength</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div>
-                  <Label>Description</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+                {/* Description */}
+                <div className="space-y-1">
+                  <Label>Description (optional)</Label>
+                  <Textarea
+                    placeholder="Losing weight to attain BMI of 22.6"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
                 </div>
 
+                {/* Numbers */}
                 <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label>Current</Label>
-                    <Input type="number" min="0" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} />
+                  <div className="space-y-1">
+                    <Label>Current Value</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="71"
+                      value={currentValue}
+                      onChange={(e) => setCurrentValue(e.target.value)}
+                    />
                   </div>
-                  <div>
-                    <Label>Target</Label>
-                    <Input type="number" min="1" required value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
+
+                  <div className="space-y-1">
+                    <Label>Target Value</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="66"
+                      value={targetValue}
+                      onChange={(e) => setTargetValue(e.target.value)}
+                      required
+                    />
                   </div>
-                  <div>
+
+                  <div className="space-y-1">
                     <Label>Unit</Label>
-                    <Input value={unit} onChange={(e) => setUnit(e.target.value)} />
+                    <Input
+                      placeholder="kg"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <Label>Target Date</Label>
-                  <Input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+                {/* Date */}
+                <div className="space-y-1">
+                  <Label>Target Date (optional)</Label>
+                  <Input
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                  />
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
@@ -221,18 +261,20 @@ export default function GoalsPage() {
 
         {/* Active Goals */}
         <div className="grid gap-4 md:grid-cols-2">
-          {activeGoals.length ? activeGoals.map((goal) => (
-            <Card key={goal.id}>
-              <CardContent className="p-6 space-y-2">
-                <h3 className="font-semibold">{goal.title}</h3>
-                <Progress value={getProgress(goal)} />
-              </CardContent>
-            </Card>
-          )) : (
+          {activeGoals.length ? (
+            activeGoals.map((goal) => (
+              <Card key={goal.id}>
+                <CardContent className="p-6 space-y-3">
+                  <h3 className="font-semibold">{goal.title}</h3>
+                  <Progress value={getProgress(goal)} />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
             <Card>
-              <CardContent className="py-12 text-center">
-                <Target className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                No active goals
+              <CardContent className="py-16 text-center">
+                <Target className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-muted-foreground">No active goals</p>
               </CardContent>
             </Card>
           )}
@@ -240,11 +282,11 @@ export default function GoalsPage() {
 
         {/* Completed Goals */}
         {completedGoals.length > 0 && (
-          <div>
+          <div className="space-y-4">
             <h2 className="text-xl font-semibold">Completed Goals</h2>
             <div className="grid gap-4 md:grid-cols-2">
               {completedGoals.map((goal) => (
-                <Card key={goal.id} className="opacity-70">
+                <Card key={goal.id} className="opacity-75">
                   <CardContent className="p-6 flex items-center gap-2">
                     <CheckCircle2 className="text-secondary" />
                     {goal.title}
