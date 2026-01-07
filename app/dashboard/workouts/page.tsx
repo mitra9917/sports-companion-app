@@ -125,11 +125,13 @@ export default function WorkoutsPage() {
       return
     }
 
+    const normalizedSportType = sportType.trim().toLowerCase()
+
     try {
       const { error } = await supabase.from("workout_sessions").insert({
         user_id: user.id,
         session_name: sessionName.trim(),
-        sport_type: sportType.trim(),
+        sport_type: normalizedSportType.trim(),
         duration_minutes: durationNum,
         intensity,
         calories_burned: calories ? caloriesNum : null,

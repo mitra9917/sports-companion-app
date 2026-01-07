@@ -26,12 +26,12 @@ import { useRouter } from "next/navigation"
 
 /* ---------- COLORS ---------- */
 const COLORS = [
-  "#2563eb", // blue
-  "#16a34a", // green
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#8b5cf6", // purple
-  "#14b8a6", // teal
+  "#2563eb",
+  "#16a34a",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#14b8a6",
 ]
 
 export default function AnalyticsPage() {
@@ -87,6 +87,7 @@ export default function AnalyticsPage() {
     const workouts = workoutsData ?? []
 
     const statsByDay: any = {}
+
     workouts.forEach((w: any) => {
       const date = new Date(w.session_date).toLocaleDateString("en-US", {
         month: "short",
@@ -115,21 +116,40 @@ export default function AnalyticsPage() {
       ),
     })
 
-    /* ---------- SPORT TYPE DISTRIBUTION ---------- */
+    /* ======================================================
+       🔧 FIX #1 — CASE-INSENSITIVE SPORT AGGREGATION
+       ====================================================== */
+
     const { data: allWorkouts } = await supabase
       .from("workout_sessions")
       .select("sport_type")
       .eq("user_id", userId)
 
-    const sportMap: any = {}
+    const sportMap: Record<string, number> = {}
+
     ;(allWorkouts ?? []).forEach((w: any) => {
       if (!w.sport_type) return
-      sportMap[w.sport_type] = (sportMap[w.sport_type] || 0) + 1
+
+      // 🔧 CHANGE: normalize sport type
+      const key = w.sport_type.toLowerCase().trim()
+
+      sportMap[key] = (sportMap[key] || 0) + 1
     })
 
-    setSportTypeDistribution(
-      Object.entries(sportMap).map(([name, value]) => ({ name, value }))
+    // 🔧 CHANGE: convert back to Title Case for UI
+    const formattedSports = Object.entries(sportMap).map(
+      ([name, value]) => ({
+        name: name
+          .split(" ")
+          .map(
+            (word) => word.charAt(0).toUpperCase() + word.slice(1)
+          )
+          .join(" "),
+        value,
+      })
     )
+
+    setSportTypeDistribution(formattedSports)
 
     /* ---------- BMI TREND ---------- */
     const { data: bmiData } = await supabase
