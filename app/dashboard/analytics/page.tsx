@@ -1,5 +1,5 @@
 "use client"
-
+import MatchPredictorCard from "./MatchPredictorCard";
 export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
@@ -262,6 +262,7 @@ export default function AnalyticsPage() {
             )}
           </ChartCard>
         </div>
+        <MatchPredictorCard />
       </main>
     </div>
   )
@@ -299,7 +300,7 @@ function ChartCard({ title, children, full }: any) {
 function EmptyState({ text }: any) {
   return (
     <div className="flex h-64 items-center justify-center text-muted-foreground">
-      {text}
+      {text} 
     </div>
   )
 }
