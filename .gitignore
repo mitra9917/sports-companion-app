@@ -17,3 +17,23 @@ pnpm-debug.log*
 
 # OS
 .DS_Store
+# --------------------
+# Python / ML ignores
+# --------------------
+
+# virtual environments
+venv/
+ml-model/venv/
+
+# python cache
+__pycache__/
+*.pyc
+
+# ML model weights (large files)
+ml-model/*.h5
+ml-model/*.joblib
+ml-model/*.save
+
+# Tensorflow / keras temp files
+*.ckpt
+*.pb
