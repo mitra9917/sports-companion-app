@@ -60,6 +60,9 @@ export default function GoalsPage() {
   const [unit, setUnit] = useState("kg")
   const [targetDate, setTargetDate] = useState("")
 
+  const [updateGoalId, setUpdateGoalId] = useState<string | null>(null)
+  const [updateValue, setUpdateValue] = useState("")
+
   useEffect(() => {
     loadData()
   }, [])
@@ -107,6 +110,7 @@ export default function GoalsPage() {
         title,
         description: description || null,
         current_value: curr,
+        start_value: curr,
         target_value: target,
         unit,
         target_date: targetDate || null,
@@ -139,7 +143,8 @@ export default function GoalsPage() {
       const current = goal.current_value
       const target = goal.target_value
 
-      if (start <= target) return 0
+      if (start <= target) return 0 // Invalid start/target configuration
+      if (current <= target) return 100
 
       const progress =
         ((start - current) / (start - target)) * 100
@@ -152,6 +157,45 @@ export default function GoalsPage() {
       (goal.current_value / goal.target_value) * 100,
       100
     )
+  }
+
+  const handleUpdateProgress = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!updateGoalId || !updateValue) return
+
+    setIsLoading(true)
+    const newCurrent = Number(updateValue)
+
+    const goal = goals.find((g) => g.id === updateGoalId)
+    if (!goal) return
+
+    let status = "active"
+    if (goal.goal_type === "weight_loss") {
+      if (newCurrent <= (goal.target_value || 0)) {
+        status = "completed"
+      }
+    } else {
+      if (newCurrent >= (goal.target_value || 0)) {
+        status = "completed"
+      }
+    }
+
+    try {
+      const { error } = await supabase
+        .from("goals")
+        .update({ current_value: newCurrent, status })
+        .eq("id", updateGoalId)
+
+      if (error) throw error
+
+      setUpdateGoalId(null)
+      setUpdateValue("")
+      loadData()
+    } catch (err) {
+      console.error("Update progress error:", err)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const activeGoals = goals.filter((g) => g.status === "active")
@@ -280,8 +324,52 @@ export default function GoalsPage() {
             activeGoals.map((goal) => (
               <Card key={goal.id}>
                 <CardContent className="p-6 space-y-3">
-                  <h3 className="font-semibold">{goal.title}</h3>
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-semibold">{goal.title}</h3>
+                    <Dialog
+                      open={updateGoalId === goal.id}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setUpdateGoalId(goal.id)
+                          setUpdateValue(goal.current_value?.toString() || "")
+                        } else {
+                          setUpdateGoalId(null)
+                        }
+                      }}
+                    >
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">Update</Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Update Progress</DialogTitle>
+                          <DialogDescription>
+                            Log your new current value for this goal.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleUpdateProgress} className="space-y-4 mt-4">
+                          <div className="space-y-2">
+                            <Label>Current Value ({goal.unit})</Label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={updateValue}
+                              onChange={(e) => setUpdateValue(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading ? "Saving..." : "Save Progress"}
+                          </Button>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <Progress value={getProgress(goal)} />
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>{goal.current_value} {goal.unit}</span>
+                    <span>{goal.target_value} {goal.unit}</span>
+                  </div>
                 </CardContent>
               </Card>
             ))

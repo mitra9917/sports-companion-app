@@ -11,6 +11,7 @@ interface Goal {
   description?: string
   target_value?: number
   current_value?: number
+  start_value?: number
   unit?: string
   target_date?: string
 }
@@ -21,8 +22,27 @@ interface ActiveGoalsProps {
 
 export function ActiveGoals({ goals }: ActiveGoalsProps) {
   const getProgress = (goal: Goal) => {
-    if (!goal.target_value || !goal.current_value) return 0
-    return Math.min((goal.current_value / goal.target_value) * 100, 100)
+    if (goal.current_value == null || goal.target_value == null) return 0
+
+    // Weight loss → reverse progress
+    if (goal.goal_type === "weight_loss") {
+      const start = goal.start_value ?? goal.current_value
+      const current = goal.current_value
+      const target = goal.target_value
+      
+      if (start <= target) return 0 // Invalid start/target configuration
+      if (current <= target) return 100
+
+      const progress = ((start - current) / (start - target)) * 100
+
+      return Math.min(Math.max(progress, 0), 100)
+    }
+
+    // Normal forward goals
+    return Math.min(
+      (goal.current_value / goal.target_value) * 100,
+      100
+    )
   }
 
   const formatGoalType = (type: string) => {
