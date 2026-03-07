@@ -36,7 +36,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const res = await fetch("http://127.0.0.1:8000/predict", {
+    const mlUrl = process.env.NEXT_PUBLIC_ML_URL || "http://127.0.0.1:8000";
+
+    const res = await fetch(`${mlUrl}/predict`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

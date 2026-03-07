@@ -6,7 +6,9 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "setup:ml": "cd ml-model && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && python3 train_match_model.py",
+    "start:ml": "cd ml-model && source venv/bin/activate && uvicorn api:app --reload --port 8000"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

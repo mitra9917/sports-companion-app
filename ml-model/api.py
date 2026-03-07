@@ -2,11 +2,16 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import numpy as np
 from tensorflow import keras
+import joblib
 
 app = FastAPI()
 
 # Load trained model once
 model = keras.models.load_model("match_predictor_model.h5", compile=False)
+try:
+    scaler = joblib.load("scaler.save")
+except FileNotFoundError:
+    scaler = None
 
 class Player(BaseModel):
     height: float
@@ -33,10 +38,11 @@ def predict_match(data: MatchRequest):
 
     if not data.useDeepModel:
         dominant = "Player 1" if h1 > h2 else "Player 2"
-        prob = abs(h1 - h2) / (abs(h1) + abs(h2) + 1e-6) * 100
+        raw_prob = abs(h1 - h2) / (abs(h1) + abs(h2) + 1e-6) * 100
+        prob = 50 + (raw_prob / 2) # Normalize to 50-100% confidence scale
 
         return {
-            "fairness": "Fair Match" if prob < 15 else "Unbalanced Match",
+            "fairness": "Fair Match" if prob < 60 else "Unbalanced Match",
             "dominance": {
                 "player": dominant,
                 "probability": round(float(prob), 2)
@@ -44,28 +50,30 @@ def predict_match(data: MatchRequest):
             "mode": "quick-heuristic"
         }
 
-        # ---------- DEEP LEARNING (Hybrid Confidence) ----------
-    X = np.array([
-        [p1.height, p1.weight, p1.age, p1.experience],
-        [p2.height, p2.weight, p2.age, p2.experience]
-    ], dtype=np.float32)
+    # ---------- DEEP LEARNING (Hybrid Confidence) ----------
+    X = np.array([[
+        p1.height, p1.weight, p1.age, p1.experience,
+        p2.height, p2.weight, p2.age, p2.experience
+    ]], dtype=np.float32)
 
-    preds = model.predict(X, verbose=0).flatten()
+    if scaler:
+        X = scaler.transform(X)
 
-    # base decision from heuristic
-    dominant = "Player 1" if h1 > h2 else "Player 2"
-    base_prob = abs(h1 - h2) / (abs(h1) + abs(h2) + 1e-6) * 100
-
-    # deep model only adjusts confidence slightly
-    dl_adjust = float(preds[0] - preds[1]) * 10  # small adjustment
-
-    final_prob = max(50, min(100, base_prob + dl_adjust))
+    preds = model.predict(X, verbose=0)
+    prob_p1 = float(preds[0][0])
+    
+    if prob_p1 >= 0.5:
+        dominant = "Player 1"
+        final_prob = prob_p1 * 100
+    else:
+        dominant = "Player 2"
+        final_prob = (1.0 - prob_p1) * 100
 
     return {
         "fairness": "Fair Match" if final_prob < 60 else "Unbalanced Match",
         "dominance": {
             "player": dominant,
-            "probability": round(float(final_prob), 2)
+            "probability": round(final_prob, 2)
         },
         "mode": "hybrid-ai"
     }

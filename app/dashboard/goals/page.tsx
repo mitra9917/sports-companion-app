@@ -24,9 +24,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Progress } from "@/components/ui/progress"
 import { Plus, Target, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { checkGoalAchievements } from "@/lib/achievements"
+import { Progress } from "@/components/ui/progress"
 
 interface Goal {
   id: string
@@ -44,6 +46,7 @@ interface Goal {
 export default function GoalsPage() {
   const supabase = createClient()
   const router = useRouter()
+  const { toast } = useToast()
 
   const [goals, setGoals] = useState<Goal[]>([])
   const [user, setUser] = useState<any>(null)
@@ -191,6 +194,19 @@ export default function GoalsPage() {
       setUpdateGoalId(null)
       setUpdateValue("")
       loadData()
+
+      if (status === "completed") {
+        const earnedAchievements = await checkGoalAchievements(user.id, supabase)
+        if (earnedAchievements && earnedAchievements.length > 0) {
+          earnedAchievements.forEach(ac => {
+            toast({
+              title: `🏆 Achievement Unlocked: ${ac.title}!`,
+              description: ac.description,
+              duration: 5000,
+            })
+          })
+        }
+      }
     } catch (err) {
       console.error("Update progress error:", err)
     } finally {

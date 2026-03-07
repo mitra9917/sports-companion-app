@@ -28,6 +28,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar, Clock, Flame, MapPin } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { checkWorkoutAchievements } from "@/lib/achievements"
+import { useToast } from "@/hooks/use-toast"
 
 interface Workout {
   id: string
@@ -58,6 +60,7 @@ export default function WorkoutsPage() {
 
   const supabase = createClient()
   const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     loadData()
@@ -150,6 +153,18 @@ export default function WorkoutsPage() {
       setDistance("")
       setNotes("")
       loadData()
+
+      // Check for achievements
+      const earnedAchievements = await checkWorkoutAchievements(user.id, supabase)
+      if (earnedAchievements && earnedAchievements.length > 0) {
+        earnedAchievements.forEach(ac => {
+          toast({
+            title: `🏆 Achievement Unlocked: ${ac.title}!`,
+            description: ac.description,
+            duration: 5000,
+          })
+        })
+      }
     } catch (error) {
       console.error("Error adding workout:", error)
       alert("Failed to log workout. Please try again.")

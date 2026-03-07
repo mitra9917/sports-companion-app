@@ -71,6 +71,16 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
               BMI
             </Button>
           </Link>
+          <Link href="/dashboard/predictor">
+            <Button variant="ghost" className="text-white/80 hover:text-white">
+              Predictor
+            </Button>
+          </Link>
+          <Link href="/dashboard/achievements">
+            <Button variant="ghost" className="text-white/80 hover:text-white">
+              Achievements
+            </Button>
+          </Link>
 
           {/* User Menu */}
           <DropdownMenu>
@@ -96,7 +106,7 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
                   <p className="text-sm font-medium">
                     {profile?.full_name || "Athlete"}
                   </p>
-                  <p className="text-xs text-white/60">{user.email}</p>
+                  <p className="text-xs text-white/60">{user?.email}</p>
                 </div>
               </DropdownMenuLabel>
 
@@ -135,6 +145,6 @@ export function DashboardHeader({ user, profile }: DashboardHeaderProps) {
           </DropdownMenu>
         </nav>
       </div>
-    </header>
+    </header >
   )
 }

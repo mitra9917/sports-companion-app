@@ -1,4 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { Activity, Target, Trophy, Zap } from "lucide-react"
 
@@ -70,24 +71,35 @@ export async function QuickStats({ userId }: QuickStatsProps) {
       icon: Trophy,
       color: "text-chart-4",
       bgColor: "bg-chart-4/10",
+      href: "/dashboard/achievements",
     },
   ]
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat) => (
-        <Card key={stat.title}>
-          <CardContent className="flex items-center gap-4 p-6">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`h-6 w-6 ${stat.color}`} />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">{stat.title}</p>
-              <p className="text-2xl font-bold">{stat.value}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {stats.map((stat) => {
+        const cardContent = (
+          <Card key={stat.title} className={stat.href ? "hover:bg-muted/50 transition-colors" : ""}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.bgColor}`}>
+                <stat.icon className={`h-6 w-6 ${stat.color}`} />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{stat.title}</p>
+                <p className="text-2xl font-bold">{stat.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+
+        return stat.href ? (
+          <Link href={stat.href} key={stat.title}>
+            {cardContent}
+          </Link>
+        ) : (
+          cardContent
+        )
+      })}
     </div>
   )
 }
