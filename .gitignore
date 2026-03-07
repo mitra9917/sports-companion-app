@@ -30,9 +30,7 @@ __pycache__/
 *.pyc
 
 # ML model weights (large files)
-ml-model/*.h5
-ml-model/*.joblib
-ml-model/*.save
+# Removed ignores: our custom model is only 84KB and required for Render deployment.
 
 # Tensorflow / keras temp files
 *.ckpt
