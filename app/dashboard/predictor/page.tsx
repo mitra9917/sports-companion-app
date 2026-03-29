@@ -83,7 +83,8 @@ export default function PredictorPage() {
             })
 
             if (!response.ok) {
-                throw new Error("Prediction API failed to respond.")
+                const errData = await response.json().catch(() => null);
+                throw new Error(errData?.error || "Prediction API failed to respond.");
             }
 
             const data = await response.json()

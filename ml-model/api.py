@@ -24,8 +24,12 @@ class MatchRequest(BaseModel):
     player2: Player
     useDeepModel: bool = False  # decides quick vs deep
 
-def heuristic_score(p):
-    return 0.3*p.height + 0.3*p.weight + 0.2*p.experience - 0.1*p.age
+def calculate_total_adv(p1, p2):
+    height_adv = (p1.height - p2.height) * 0.2
+    weight_adv = (p1.weight - p2.weight) * 0.1
+    exp_adv = (p1.experience - p2.experience) * 3.0
+    age_adv = (p2.age - p1.age) * 0.5
+    return height_adv + weight_adv + exp_adv + age_adv
 
 @app.post("/predict")
 def predict_match(data: MatchRequest):
@@ -33,19 +37,20 @@ def predict_match(data: MatchRequest):
     p2 = data.player2
 
     # ---------- QUICK HEURISTIC ----------
-    h1 = heuristic_score(p1)
-    h2 = heuristic_score(p2)
-
     if not data.useDeepModel:
-        dominant = "Player 1" if h1 > h2 else "Player 2"
-        raw_prob = abs(h1 - h2) / (abs(h1) + abs(h2) + 1e-6) * 100
-        prob = 50 + (raw_prob / 2) # Normalize to 50-100% confidence scale
+        total_adv = calculate_total_adv(p1, p2)
+        clamped_adv = max(-45.0, min(45.0, total_adv))
+        p1_prob = 50.0 + clamped_adv
+        
+        dominant = "Player 1" if p1_prob >= 50 else "Player 2"
+        final_prob = p1_prob if p1_prob >= 50 else (100.0 - p1_prob)
+        fairness = "Fair Match" if abs(clamped_adv) < 15 else "Unbalanced Match"
 
         return {
-            "fairness": "Fair Match" if prob < 60 else "Unbalanced Match",
+            "fairness": fairness,
             "dominance": {
                 "player": dominant,
-                "probability": round(float(prob), 2)
+                "probability": round(float(final_prob), 2)
             },
             "mode": "quick-heuristic"
         }
