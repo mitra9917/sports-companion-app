@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,7 @@ interface PredictionResult {
         probability: number
     }
     mode: string
+    warning?: string
 }
 
 export default function PredictorPage() {
@@ -50,8 +51,7 @@ export default function PredictorPage() {
         experience: 8
     })
 
-    // Load user data so header renders properly
-    useState(() => {
+    useEffect(() => {
         async function loadUser() {
             const supabase = createClient()
             const { data } = await supabase.auth.getUser()
@@ -62,7 +62,7 @@ export default function PredictorPage() {
             }
         }
         loadUser()
-    })
+    }, [])
 
     const handlePredict = async () => {
         setIsLoading(true)
@@ -205,6 +205,12 @@ export default function PredictorPage() {
                 {error && (
                     <div className="p-4 bg-destructive/20 text-destructive border border-destructive/50 rounded-lg text-center">
                         {error}
+                    </div>
+                )}
+
+                {result?.warning && (
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-300/10 p-4 text-center text-sm text-amber-100">
+                        {result.warning}
                     </div>
                 )}
 

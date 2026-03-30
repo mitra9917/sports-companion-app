@@ -24,6 +24,15 @@ class MatchRequest(BaseModel):
     player2: Player
     useDeepModel: bool = False  # decides quick vs deep
 
+
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "sports-ml-predictor",
+        "predict_endpoint": "/predict",
+    }
+
 def calculate_total_adv(p1, p2):
     height_adv = (p1.height - p2.height) * 0.2
     weight_adv = (p1.weight - p2.weight) * 0.1

@@ -64,10 +64,15 @@ export default function SettingsPage() {
     setMessage(null)
 
     try {
+      const siteUrl =
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
+        window.location.origin
+
       const { error } = await supabase.auth.resetPasswordForEmail(
         user.email,
         {
-          redirectTo: `${window.location.origin}/auth/reset-password`,
+          redirectTo: `${siteUrl}/auth/reset-password`,
         }
       )
 
