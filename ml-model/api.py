@@ -36,6 +36,17 @@ class MatchRequest(BaseModel):
 
 # --- 3. HELPER FUNCTION ---
 def calculate_total_adv(p1: Player, p2: Player):
+# --- HEALTH CHECK ENDPOINT ---
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "sports-ml-predictor",
+        "predict_endpoint": "/predict_compatibility", 
+    }
+
+# --- 3. HELPER FUNCTION ---
+def calculate_total_adv(p1: Player, p2: Player):
     height_adv = (p1.height - p2.height) * 0.2
     weight_adv = (p1.weight - p2.weight) * 0.1
     exp_adv = (p1.experience - p2.experience) * 3.0

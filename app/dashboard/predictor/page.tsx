@@ -21,6 +21,7 @@ interface PredictionResult {
         probability: number | string 
     }
     mode: string
+    warning?: string
 }
 
 export default function PredictorPage() {
@@ -316,6 +317,12 @@ export default function PredictorPage() {
                 {error && (
                     <div className="p-4 bg-destructive/20 text-destructive border border-destructive/50 rounded-lg text-center">
                         {error}
+                    </div>
+                )}
+
+                {result?.warning && (
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-300/10 p-4 text-center text-sm text-amber-100">
+                        {result.warning}
                     </div>
                 )}
 

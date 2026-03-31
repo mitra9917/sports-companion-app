@@ -1,26 +1,47 @@
 "use client";
+
 import { useState } from "react";
 
+type PlayerFormState = {
+  height: string;
+  weight: string;
+  age: string;
+  experience: string;
+};
+
+type PredictionResult = {
+  fairness: string;
+  dominance: {
+    player: string;
+    probability: number;
+  };
+  mode: string;
+  warning?: string;
+};
+
+const initialPlayerState: PlayerFormState = {
+  height: "",
+  weight: "",
+  age: "",
+  experience: "",
+};
+
 export default function MatchPredictorCard() {
-  const [player1, setPlayer1] = useState({
-    height: "",
-    weight: "",
-    age: "",
-    experience: "",
-  });
+  const [player1, setPlayer1] = useState<PlayerFormState>(initialPlayerState);
+  const [player2, setPlayer2] = useState<PlayerFormState>(initialPlayerState);
+  const [result, setResult] = useState<PredictionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingMode, setLoadingMode] = useState<"fast" | "deep" | null>(null);
 
-  const [player2, setPlayer2] = useState({
-    height: "",
-    weight: "",
-    age: "",
-    experience: "",
-  });
+  const hasEmptyFields = [...Object.values(player1), ...Object.values(player2)].some(
+    (value) => value.trim() === ""
+  );
 
-  const [result, setResult] = useState<any | null>(null);
-  const [loading, setLoading] = useState(false);
+  const handlePredict = async (useDeepModel = false) => {
+    setLoadingMode(useDeepModel ? "deep" : "fast");
+    setError(null);
+    setResult(null);
 
-  const handlePredict = async() => {
-    setLoading(true);
     try {
       const res = await fetch("/api/predict", {
         method: "POST",
@@ -40,85 +61,120 @@ export default function MatchPredictorCard() {
             age: Number(player2.age),
             experience: Number(player2.experience),
           },
+          useDeepModel,
         }),
       });
 
-      const data = await res.json();
-      setResult(data);
-    } catch (error) {
-      console.error("Prediction error:", error);
+      const data = (await res.json()) as PredictionResult | { error?: string };
+      const apiError = "error" in data ? data.error : undefined;
+
+      if (!res.ok) {
+        throw new Error(apiError || "Prediction failed");
+      }
+
+      setResult(data as PredictionResult);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Prediction failed. Please try again.";
+      setError(message);
+    } finally {
+      setLoadingMode(null);
     }
-    setLoading(false);
+  };
+
+  const updatePlayerField = (
+    playerIndex: 1 | 2,
+    field: keyof PlayerFormState,
+    value: string
+  ) => {
+    if (playerIndex === 1) {
+      setPlayer1((current) => ({ ...current, [field]: value }));
+      return;
+    }
+
+    setPlayer2((current) => ({ ...current, [field]: value }));
   };
 
   return (
-    <div className="p-6 mt-10 border rounded-xl shadow bg-black/40">
-      <h2 className="text-xl font-bold mb-4 text-white">
-        🤖 Match Fairness Predictor
-      </h2>
+    <div className="mt-10 rounded-xl border border-white/10 bg-black/40 p-6 shadow">
+      <h2 className="mb-2 text-xl font-bold text-white">Match Fairness Predictor</h2>
+      <p className="text-sm text-white/65">
+        Quick analysis returns instantly. AI analysis uses the remote model and falls back automatically if it is unavailable.
+      </p>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         {[player1, player2].map((player, idx) => (
           <div key={idx} className="space-y-2">
             <h3 className="font-semibold text-white">Player {idx + 1}</h3>
-            {["height", "weight", "age", "experience"].map((field) => (
+            {(["height", "weight", "age", "experience"] as const).map((field) => (
               <input
                 key={field}
                 type="number"
+                inputMode="numeric"
+                min="0"
                 placeholder={field}
-                className="border p-2 w-full rounded bg-gray-900 text-white border-gray-700"
-                value={(player as any)[field]}
-                onChange={(e) =>
-                  idx === 0
-                    ? setPlayer1({ ...player1, [field]: e.target.value })
-                    : setPlayer2({ ...player2, [field]: e.target.value })
-                }
+                className="w-full rounded border border-gray-700 bg-gray-900 p-2 text-white"
+                value={player[field]}
+                onChange={(e) => updatePlayerField(idx === 0 ? 1 : 2, field, e.target.value)}
               />
             ))}
           </div>
         ))}
       </div>
 
-      {/* Buttons */}
-      <div className="flex gap-3 mt-6">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <button
+          onClick={() => handlePredict(false)}
+          disabled={loadingMode !== null || hasEmptyFields}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loadingMode === "fast" ? "Analyzing..." : "Quick Analysis"}
+        </button>
         <button
           onClick={() => handlePredict(true)}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg"
+          disabled={loadingMode !== null || hasEmptyFields}
+          className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          🧠 Advanced AI Analysis
+          {loadingMode === "deep" ? "Running AI..." : "Advanced AI Analysis"}
         </button>
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <p className="mt-4 text-gray-300">Analyzing match...</p>
+      {hasEmptyFields && (
+        <p className="mt-3 text-xs text-white/55">Fill all player fields to run the predictor.</p>
       )}
 
-      {/* Result */}
-      {result && result.dominance && (
-  <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
-    <p className="text-sm text-white/80">
-      <strong>Result:</strong> {result.fairness ?? "Unknown"}
-    </p>
+      {error && (
+        <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
 
-    <p className="text-sm text-white/80">
-      <strong>Dominant:</strong> {result.dominance?.player ?? "N/A"} (
-      {result.dominance?.probability ?? 0}%)
-    </p>
+      {result && (
+        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+          <p className="text-sm text-white/80">
+            <strong>Result:</strong> {result.fairness}
+          </p>
 
-    {/* Progress Bar */}
-    <div className="mt-3 h-2 w-full rounded-full bg-white/10">
-      <div
-        className="h-2 rounded-full bg-gradient-to-r from-primary to-secondary"
-        style={{ width: `${result.dominance?.probability ?? 0}%` }}
-      />
-    </div>
+          <p className="mt-1 text-sm text-white/80">
+            <strong>Dominant:</strong> {result.dominance.player} ({result.dominance.probability}%)
+          </p>
 
-    <p className="mt-1 text-xs text-white/60">
-      Mode: Hybrid AI Model
-    </p>
-  </div>
-)}
+          <div className="mt-3 h-2 w-full rounded-full bg-white/10">
+            <div
+              className="h-2 rounded-full bg-gradient-to-r from-primary to-secondary"
+              style={{ width: `${result.dominance.probability}%` }}
+            />
+          </div>
+
+          <p className="mt-2 text-xs uppercase tracking-wide text-white/55">Mode: {result.mode}</p>
+
+          {result.warning && (
+            <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-300/10 p-3 text-xs text-amber-100">
+              {result.warning}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

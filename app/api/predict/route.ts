@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
 
-function fastPredict(player1: any, player2: any) {
+type PlayerStats = {
+  height: number;
+  weight: number;
+  age: number;
+  experience: number;
+};
+
+type PredictionResult = {
+  fairness: string;
+  dominance: {
+    player: string;
+    probability: number;
+  };
+  mode: string;
+  warning?: string;
+};
+
+function fastPredict(player1: PlayerStats, player2: PlayerStats): PredictionResult {
   // Calculate relative advantages 
   // Height and weight give minor advantages
   const heightAdv = (player1.height - player2.height) * 0.2;
@@ -28,27 +45,100 @@ function fastPredict(player1: any, player2: any) {
     fairness,
     dominance: {
       player: dominant.player,
-      probability: dominant.probability.toFixed(2),
+      probability: Number(dominant.probability.toFixed(2)),
     },
     mode: "fast",
   };
 }
 
-// app/api/predict/route.ts
+function getMlUrl() {
+  if (process.env.ML_URL) {
+    return process.env.ML_URL;
+  }
+
+  if (process.env.NEXT_PUBLIC_ML_URL) {
+    return process.env.NEXT_PUBLIC_ML_URL;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return "http://127.0.0.1:8000";
+  }
+
+  return null;
+}
+
+function getMlTimeoutMs() {
+  const rawTimeout =
+    process.env.ML_TIMEOUT_MS || process.env.NEXT_PUBLIC_ML_TIMEOUT_MS;
+  const parsedTimeout = rawTimeout ? Number(rawTimeout) : NaN;
+
+  if (Number.isFinite(parsedTimeout) && parsedTimeout >= 1000) {
+    return parsedTimeout;
+  }
+
+  return process.env.NODE_ENV === "production" ? 10000 : 12000;
+}
+
+function withFallback(
+  player1: PlayerStats,
+  player2: PlayerStats,
+  warning: string
+): PredictionResult {
+  return {
+    ...fastPredict(player1, player2),
+    mode: "fast-fallback",
+    warning,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    const player1 = body.player1 as PlayerStats;
+    const player2 = body.player2 as PlayerStats;
+    const useDeepModel = body.useDeepModel === true;
 
-    const mlUrl = process.env.NEXT_PUBLIC_ML_URL || "http://127.0.0.1:8000";
+    if (!player1 || !player2) {
+      return NextResponse.json(
+        { error: "Both players are required" },
+        { status: 400 }
+      );
+    }
+
+    // The fast heuristic should never wait on the remote ML service.
+    if (!useDeepModel) {
+      return NextResponse.json(fastPredict(player1, player2));
+    }
+
+    const mlUrl = getMlUrl();
+
+    if (!mlUrl) {
+      return NextResponse.json(
+        withFallback(
+          player1,
+          player2,
+          "Deep model is not configured in production, so the fast predictor was used."
+        )
+      );
+    }
 
     try {
-      const res = await fetch(`${mlUrl}/predict`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), getMlTimeoutMs());
+      let res: Response;
+
+      try {
+        res = await fetch(`${mlUrl}/predict`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!res.ok) {
         throw new Error(`ML API returned status: ${res.status}`);
@@ -58,17 +148,18 @@ export async function POST(req: Request) {
       return NextResponse.json(data);
     } catch (mlError) {
       console.warn("ML API fetch error:", mlError);
-      
-      if (body.useDeepModel) {
-        return NextResponse.json(
-          { error: "Deep Learning ML Server is offline! To use deep AI, please open a terminal and run: npm run start:ml" },
-          { status: 503 }
-        );
-      }
-      
-      console.warn("Falling back to local heuristic.");
-      const fallbackResult = fastPredict(body.player1, body.player2);
-      return NextResponse.json(fallbackResult);
+      const warning =
+        mlError instanceof Error && mlError.name === "AbortError"
+          ? "Deep model timed out, so the fast predictor was used."
+          : "Deep model is currently unavailable or slow, so the fast predictor was used.";
+
+      return NextResponse.json(
+        withFallback(
+          player1,
+          player2,
+          warning
+        )
+      );
     }
   } catch (err) {
     console.error("General API error:", err);

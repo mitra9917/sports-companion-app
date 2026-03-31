@@ -2,13 +2,16 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.9.3",
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3000",
+    "dev:full": "sh -c 'npm run start:ml & ML_PID=$!; npm run dev; kill $ML_PID 2>/dev/null || true'",
+    "dev:web": "next dev --webpack --hostname 127.0.0.1 --port 3000",
     "lint": "eslint .",
     "start": "next start",
     "setup:ml": "cd ml-model && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt && python3 train_match_model.py",
-    "start:ml": "cd ml-model && source venv/bin/activate && uvicorn api:app --reload --port 8000"
+    "start:ml": "cd ml-model && source venv/bin/activate && uvicorn api:app --host 127.0.0.1 --port 8000"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
