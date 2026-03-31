@@ -1,18 +1,27 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import numpy as np
-from tensorflow import keras
+from tensorflow.keras.models import load_model
 import joblib
 
 app = FastAPI()
 
-# Load trained model once
-model = keras.models.load_model("match_predictor_model.h5", compile=False)
+# --- 1. GLOBALLY LOAD MODEL & SCALER ---
+# We put this in a try/except block so the API doesn't crash if the files are missing
+try:
+    model = load_model('match_predictor_model.h5')
+except Exception as e:
+    print(f"Warning: Could not load model. Error: {e}")
+    model = None
+
 try:
     scaler = joblib.load("scaler.save")
 except FileNotFoundError:
+    print("Warning: scaler.save not found. Proceeding without scaler.")
     scaler = None
 
+
+# --- 2. DEFINE DATA STRUCTURES ---
 class Player(BaseModel):
     height: float
     weight: float
@@ -24,14 +33,18 @@ class MatchRequest(BaseModel):
     player2: Player
     useDeepModel: bool = False  # decides quick vs deep
 
-def calculate_total_adv(p1, p2):
+
+# --- 3. HELPER FUNCTION ---
+def calculate_total_adv(p1: Player, p2: Player):
     height_adv = (p1.height - p2.height) * 0.2
     weight_adv = (p1.weight - p2.weight) * 0.1
     exp_adv = (p1.experience - p2.experience) * 3.0
     age_adv = (p2.age - p1.age) * 0.5
     return height_adv + weight_adv + exp_adv + age_adv
 
-@app.post("/predict")
+
+# --- 4. THE PREDICTION ENDPOINT ---
+@app.post("/predict_compatibility")
 def predict_match(data: MatchRequest):
     p1 = data.player1
     p2 = data.player2
@@ -47,6 +60,7 @@ def predict_match(data: MatchRequest):
         fairness = "Fair Match" if abs(clamped_adv) < 15 else "Unbalanced Match"
 
         return {
+            "success": True,
             "fairness": fairness,
             "dominance": {
                 "player": dominant,
@@ -56,6 +70,10 @@ def predict_match(data: MatchRequest):
         }
 
     # ---------- DEEP LEARNING (Hybrid Confidence) ----------
+    if model is None:
+        raise HTTPException(status_code=500, detail="Deep learning model not loaded. Check server logs.")
+
+    # Format the input exactly as the model expects
     X = np.array([[
         p1.height, p1.weight, p1.age, p1.experience,
         p2.height, p2.weight, p2.age, p2.experience
@@ -64,6 +82,7 @@ def predict_match(data: MatchRequest):
     if scaler:
         X = scaler.transform(X)
 
+    # Make the prediction
     preds = model.predict(X, verbose=0)
     prob_p1 = float(preds[0][0])
     
@@ -75,6 +94,7 @@ def predict_match(data: MatchRequest):
         final_prob = (1.0 - prob_p1) * 100
 
     return {
+        "success": True,
         "fairness": "Fair Match" if final_prob < 60 else "Unbalanced Match",
         "dominance": {
             "player": dominant,
