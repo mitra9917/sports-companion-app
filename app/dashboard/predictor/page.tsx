@@ -46,6 +46,7 @@ export default function PredictorPage() {
     const [detector, setDetector] = useState<any>(null)
     const [scanStatus, setScanStatus] = useState("Turn on camera to scan heights")
     const [isScanning, setIsScanning] = useState(false)
+    const [isTfLoaded, setIsTfLoaded] = useState(false)
 
     useEffect(() => {
         async function loadUser() {
@@ -150,7 +151,7 @@ export default function PredictorPage() {
         setResult(null)
 
         try {
-            const data = await predictMatchFairness(player1, player2)
+            const data = await predictMatchFairness(player1, player2, useDeepModel)
             if (!data) throw new Error("Failed to get prediction.")
             
             setResult({
@@ -224,8 +225,17 @@ export default function PredictorPage() {
         <div className="flex min-h-screen flex-col">
             
             {/* INJECT AI LIBRARIES DIRECTLY INTO THE BROWSER (BYPASSES WEBPACK) */}
-            <Script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js" strategy="afterInteractive" />
-            <Script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection/dist/pose-detection.min.js" strategy="afterInteractive" />
+            <Script 
+                src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js" 
+                strategy="afterInteractive" 
+                onReady={() => setIsTfLoaded(true)}
+            />
+            {isTfLoaded && (
+                <Script 
+                    src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection/dist/pose-detection.min.js" 
+                    strategy="afterInteractive" 
+                />
+            )}
 
             <DashboardHeader user={user} profile={profile} />
 

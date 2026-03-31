@@ -128,7 +128,7 @@ export async function POST(req: Request) {
       let res: Response;
 
       try {
-        res = await fetch(`${mlUrl}/predict`, {
+        res = await fetch(`${mlUrl}/predict_compatibility`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

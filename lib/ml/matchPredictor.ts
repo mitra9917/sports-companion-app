@@ -6,10 +6,10 @@ export type PlayerStats = {
 };
 
 // We change this to an 'async' function because it now makes a network request to Python
-export async function predictMatchFairness(p1: PlayerStats, p2: PlayerStats) {
+export async function predictMatchFairness(p1: PlayerStats, p2: PlayerStats, useDeepModel: boolean = true) {
   try {
-    // 1. Try to ask the Python AI Backend
-    const response = await fetch('http://127.0.0.1:5000/predict_compatibility', {
+    // 1. Try to ask the Next.js API route that proxies to Python
+    const response = await fetch('/api/predict', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -17,14 +17,14 @@ export async function predictMatchFairness(p1: PlayerStats, p2: PlayerStats) {
       body: JSON.stringify({
         player1: p1,
         player2: p2,
-        useDeepModel: true // Tells Python to use the .h5 model
+        useDeepModel: useDeepModel // Tells API route to use ML or Heuristic
       }),
     });
 
     const data = await response.json();
 
-    if (!data.success) {
-      throw new Error("Python API failed to process the request.");
+    if (!data.fairness) {
+      throw new Error("API failed to process the request or returned invalid data.");
     }
 
     // Return the data exactly as your Next.js UI expects it
